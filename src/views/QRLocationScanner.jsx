@@ -31,8 +31,9 @@ const QRLocationScanner = () => {
   const areLocationsMatching = (userLoc, targetLoc) => {
     if (!userLoc || !targetLoc) return false;
 
-    const targetLat = parseFloat(targetLoc.Lat);
-    const targetLon = parseFloat(targetLoc.Lon);
+    // Fix: Parse numerical values properly
+    const targetLat = parseFloat(targetLoc.lat || targetLoc.Lat);
+    const targetLon = parseFloat(targetLoc.lon || targetLoc.Lon);
 
     if (isNaN(targetLat) || isNaN(targetLon)) return false;
 
@@ -42,6 +43,7 @@ const QRLocationScanner = () => {
       Math.abs(userLoc.lon - targetLon) < threshold
     );
   };
+  
   useEffect(() => {
     if (isAuthenticated) {
       // Request camera access
@@ -89,24 +91,42 @@ const QRLocationScanner = () => {
         (decodedText, decodedResult) => {
           console.log("QR Code detected:", decodedText);
           try {
-            const parsedData = JSON.parse(decodedText);
-            setScannedResult(parsedData);
+            // Fix: Better error handling for JSON parsing and clearer feedback
+            let parsedData;
+            try {
+              parsedData = JSON.parse(decodedText);
+            } catch (parseError) {
+              console.error("Failed to parse as JSON, trying as plain text:", parseError);
+              // If it's not JSON, try to use it as a location name directly
+              parsedData = { locationName: decodedText, lat: null, lon: null };
+            }
+            
+            // Fix: Normalize the data structure for consistent property access
+            const normalizedData = {
+              locationName: parsedData.locationName || "Unknown Location",
+              lat: parsedData.lat || parsedData.Lat,
+              lon: parsedData.lon || parsedData.Lon
+            };
+            
+            console.log("Normalized QR data:", normalizedData);
+            setScannedResult(normalizedData);
 
-            if (parsedData && location.lat && location.lon) {
-              const locationMatches = areLocationsMatching(
-                location,
-                parsedData
-              );
+            if (normalizedData.lat && normalizedData.lon && location.lat && location.lon) {
+              const locationMatches = areLocationsMatching(location, normalizedData);
               setIsPunchedIn(locationMatches);
 
               // If location matches and user is authenticated, send data to API
               if (locationMatches && isAuthenticated) {
-                sendPunchInData(parsedData);
+                sendPunchInData(normalizedData);
               }
+            } else {
+              // Handle case where QR code doesn't contain location coordinates
+              console.log("QR code doesn't contain valid location coordinates");
+              setIsPunchedIn(false);
             }
           } catch (error) {
-            console.error("Error parsing QR data:", error);
-            alert("Invalid QR code format");
+            console.error("Error processing QR data:", error);
+            alert("Error processing QR code data");
           }
 
           scanner.clear(); // Stop scanning after detection
@@ -159,6 +179,10 @@ const QRLocationScanner = () => {
 
     setIsSubmitting(true);
     try {
+      // Fix: Ensure we're using normalized property names
+      const qrLat = parseFloat(qrData.lat || qrData.Lat);
+      const qrLon = parseFloat(qrData.lon || qrData.Lon);
+      
       // API call to record attendance
       const response = await fetch("http://localhost:5000/data", {
         method: "POST",
@@ -166,17 +190,17 @@ const QRLocationScanner = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId: userProfile.employeeId,
+          userID: userProfile.employeeId,
           userName: userProfile.name,
           email: userProfile.email,
-          timestamp: new Date().toISOString(),
+          timeStamp: new Date().toISOString(),
           location: {
             latitude: location.lat,
             longitude: location.lon,
           },
           qrLocation: {
-            latitude: parseFloat(qrData.Lat),
-            longitude: parseFloat(qrData.Lon),
+            latitude: qrLat,
+            longitude: qrLon,
           },
           locationName: qrData.locationName || "Unknown Location",
         }),
@@ -411,8 +435,9 @@ const QRLocationScanner = () => {
                   <div className="text-sm text-gray-700 break-all bg-white p-3 rounded border border-gray-200">
                     <p className="font-medium mb-1">Location Data:</p>
                     <p>Location: {scannedResult.locationName || "Unknown"}</p>
+                    {/* Fix: Use consistent property names */}
                     <p>
-                      Coordinates: {scannedResult.Lat}, {scannedResult.Lon}
+                      Coordinates: {scannedResult.lat || scannedResult.Lat || "N/A"}, {scannedResult.lon || scannedResult.Lon || "N/A"}
                     </p>
                   </div>
 

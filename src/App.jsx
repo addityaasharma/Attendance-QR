@@ -4,8 +4,8 @@ import QRCodeScanner from './views/QRLocationScanner';
 
 const App = () => {
   return (
-    <Scanner/>
     // <QRCodeScanner/>
+    <Scanner/>
   )
 }
 
