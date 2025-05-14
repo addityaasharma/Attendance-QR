@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { UserCircle, LogIn, LogOut, User, Menu, X } from "lucide-react";
+import axios from 'axios'
 
 const QRLocationScanner = () => {
   const [scannedResult, setScannedResult] = useState(null);
@@ -27,11 +28,9 @@ const QRLocationScanner = () => {
     employeeId: "",
   });
 
-  // Function to check if locations match
   const areLocationsMatching = (userLoc, targetLoc) => {
     if (!userLoc || !targetLoc) return false;
 
-    // Fix: Parse numerical values properly
     const targetLat = parseFloat(targetLoc.lat || targetLoc.Lat);
     const targetLon = parseFloat(targetLoc.lon || targetLoc.Lon);
 
@@ -46,7 +45,6 @@ const QRLocationScanner = () => {
   
   useEffect(() => {
     if (isAuthenticated) {
-      // Request camera access
       navigator.mediaDevices
         .getUserMedia({ video: true })
         .then((stream) => {
@@ -58,7 +56,6 @@ const QRLocationScanner = () => {
           alert("Camera permission is required for QR scanning.");
         });
 
-      // Request location access
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
@@ -83,44 +80,36 @@ const QRLocationScanner = () => {
 
   useEffect(() => {
     if (openScanner && !scannedResult && location.lat && location.lon) {
-      // Start QR scanner only when location is available
       const config = { fps: 10, qrbox: { width: 250, height: 250 } };
       const scanner = new Html5QrcodeScanner("qr-reader", config, false);
 
       scanner.render(
         (decodedText, decodedResult) => {
-          console.log("QR Code detected:", decodedText);
           try {
-            // Fix: Better error handling for JSON parsing and clearer feedback
             let parsedData;
             try {
               parsedData = JSON.parse(decodedText);
             } catch (parseError) {
               console.error("Failed to parse as JSON, trying as plain text:", parseError);
-              // If it's not JSON, try to use it as a location name directly
               parsedData = { locationName: decodedText, lat: null, lon: null };
             }
             
-            // Fix: Normalize the data structure for consistent property access
             const normalizedData = {
-              locationName: parsedData.locationName || "Unknown Location",
+              locationName: parsedData.LocationName || "Unknown Location",
               lat: parsedData.lat || parsedData.Lat,
               lon: parsedData.lon || parsedData.Lon
             };
             
-            console.log("Normalized QR data:", normalizedData);
             setScannedResult(normalizedData);
 
             if (normalizedData.lat && normalizedData.lon && location.lat && location.lon) {
               const locationMatches = areLocationsMatching(location, normalizedData);
               setIsPunchedIn(locationMatches);
 
-              // If location matches and user is authenticated, send data to API
               if (locationMatches && isAuthenticated) {
                 sendPunchInData(normalizedData);
               }
             } else {
-              // Handle case where QR code doesn't contain location coordinates
               console.log("QR code doesn't contain valid location coordinates");
               setIsPunchedIn(false);
             }
@@ -129,7 +118,7 @@ const QRLocationScanner = () => {
             alert("Error processing QR code data");
           }
 
-          scanner.clear(); // Stop scanning after detection
+          scanner.clear();
         },
         (errorMessage) => {
           console.log("QR scan error:", errorMessage);
@@ -139,7 +128,6 @@ const QRLocationScanner = () => {
       scannerRef.current = scanner;
     }
 
-    // Get current location if not available
     if (!location.lat && !location.lon) {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -158,7 +146,6 @@ const QRLocationScanner = () => {
       }
     }
 
-    // Cleanup the scanner when component unmounts or scanning stops
     return () => {
       if (scannerRef.current) {
         try {
@@ -179,13 +166,10 @@ const QRLocationScanner = () => {
 
     setIsSubmitting(true);
     try {
-      // Fix: Ensure we're using normalized property names
       const qrLat = parseFloat(qrData.lat || qrData.Lat);
       const qrLon = parseFloat(qrData.lon || qrData.Lon);
       
-      // API call to record attendance
-      const response = await fetch("http://localhost:5000/data", {
-        method: "POST",
+      const response = await axios.post("http://localhost:5000/data", {
         headers: {
           "Content-Type": "application/json",
         },
@@ -232,11 +216,7 @@ const QRLocationScanner = () => {
           ? "http://localhost:5000/login"
           : "http://localhost:5000/signup";
 
-      // For demo purposes - mock API response
-      // In a real app, you would make an actual API call:
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
+      const response = await axios.post(endpoint, {
         headers: {
           'Content-Type': 'application/json',
         },
@@ -244,12 +224,10 @@ const QRLocationScanner = () => {
       });
       const data = await response.json();
 
-      // Mock successful authentication for demo
       setTimeout(() => {
         setIsAuthenticated(true);
         setShowAuthModal(false);
 
-        // Mock user profile data (in real app, this would come from API)
         setUserProfile({
           name: userData.name || "John Doe",
           email: userData.email,
